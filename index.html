@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Mercan Draft</title>
+    <style>
+        :root { --p1: #00d2ff; --p2: #ff416c; --bg: #0d0d0f; --gold: #ffcc00; }
+        * { box-sizing: border-box; }
+        body { background: var(--bg); color: white; font-family: 'Inter', sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        .header { height: 7vh; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); }
+        .header h1 { font-size: 22px; letter-spacing: 5px; margin: 0; background: linear-gradient(to right, var(--p1), var(--p2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        .game-container { display: flex; height: 93vh; padding: 10px; gap: 10px; justify-content: center; }
+        
+        .team-side { width: 340px; display: flex; flex-direction: column; gap: 8px; }
+        .pitch { position: relative; width: 100%; flex-grow: 1; background: #142115; border: 2px solid #333; border-radius: 12px; box-shadow: inset 0 0 50px rgba(0,0,0,0.5); }
+        .pitch.active-a { border-color: var(--p1); box-shadow: 0 0 15px var(--p1); }
+        .pitch.active-b { border-color: var(--p2); box-shadow: 0 0 15px var(--p2); }
+        
+        .slot { position: absolute; width: 48px; height: 48px; background: rgba(0,0,0,0.6); border: 1px dashed rgba(255,255,255,0.3); border-radius: 50%; transform: translate(-50%, -50%); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 9px; text-align: center; line-height: 1; transition: 0.2s; z-index: 5; }
+        .slot.filled { border: 1.5px solid var(--gold); border-radius: 6px; background: #000; width: 75px; height: 42px; font-weight: bold; color: white; flex-direction: column; }
+        .slot .rtg { color: var(--gold); font-size: 11px; display: none; margin-top: 2px; }
+
+        .bench { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; height: 50px; }
+        .sub-slot { background: #111; border: 1px solid #333; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 9px; cursor: pointer; color: #555; }
+        .sub-slot.filled { border-color: var(--gold); color: white; flex-direction: column; font-weight: bold; }
+
+        .center-panel { width: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.02); border-radius: 15px; padding: 10px; border: 1px solid #222; }
+        .wheel-area { position: relative; width: 240px; height: 240px; margin: 10px 0; }
+        #wheel-svg { width: 100%; height: 100%; transition: transform 4s cubic-bezier(0.1, 0, 0.1, 1); }
+        .needle { position: absolute; top: -5px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 20px solid var(--gold); z-index: 10; filter: drop-shadow(0 0 5px black); }
+        
+        button { background: #1a1a1a; color: white; border: 1px solid #444; padding: 12px; border-radius: 20px; cursor: pointer; width: 100%; font-weight: bold; font-size: 14px; }
+        button:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+
+        #modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1500; align-items: center; justify-content: center; }
+        .modal-box { background: #111; padding: 25px; border: 2px solid var(--gold); border-radius: 12px; width: 320px; text-align: center; box-shadow: 0 0 30px rgba(0,0,0,1); }
+        input { width: 100%; padding: 12px; margin: 15px 0; background: #222; border: 1px solid #444; color: white; border-radius: 8px; text-align: center; font-size: 18px; }
+
+        #win-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 2000; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .win-card { background: #111; padding: 40px; border-radius: 25px; border: 4px solid var(--gold); box-shadow: 0 0 100px rgba(255,204,0,0.2); }
+        .win-card h2 { font-size: 50px; margin: 0; color: var(--gold); text-shadow: 0 0 20px rgba(255,204,0,0.5); }
+    </style>
+</head>
+<body>
+
+    <div class="header"><h1>MERCAN DRAFT</h1></div>
+
+    <div class="game-container">
+        <div class="team-side">
+            <h4 style="margin:0; color:var(--p1); text-align:center; font-size:12px;">A TAKIMI</h4>
+            <div id="pitch-A" class="pitch active-a"></div>
+            <div class="bench" id="bench-A"></div>
+        </div>
+
+        <div class="center-panel">
+            <div id="turn-txt" style="font-weight:bold; color:var(--p1); font-size:14px;">Sıra: A Takımı</div>
+            <div class="wheel-area">
+                <div class="needle"></div>
+                <svg id="wheel-svg" viewBox="0 0 100 100"></svg>
+            </div>
+            <button id="spin-btn" onclick="spin()">ÇARKI ÇEVİR</button>
+            <div id="res-club" style="color:var(--gold); font-weight:bold; margin-top:10px; font-size:18px; min-height:22px;"></div>
+        </div>
+
+        <div class="team-side">
+            <h4 style="margin:0; color:var(--p2); text-align:center; font-size:12px;">B TAKIMI</h4>
+            <div id="pitch-B" class="pitch"></div>
+            <div class="bench" id="bench-B"></div>
+        </div>
+    </div>
+
+    <div id="modal">
+        <div class="modal-box">
+            <h3 id="m-club" style="color:var(--gold); margin:0;">Takım</h3>
+            <p id="m-pos" style="font-size:12px; margin:5px 0; color:#888;">Mevki</p>
+            <input type="text" id="p-input" placeholder="İsim veya Soyisim" autocomplete="off">
+            <button onclick="confirmP()">KADROYA EKLE</button>
+            <button onclick="closeM()" style="margin-top:8px; background:none; border:none; font-size:12px; color:#555;">İPTAL</button>
+        </div>
+    </div>
+
+    <div id="win-overlay">
+        <div class="win-card">
+            <h2 id="win-team">KAZANAN</h2>
+            <p id="win-score" style="font-size:24px; color:#fff; margin: 20px 0;"></p>
+            <button onclick="location.reload()" style="width:auto; padding:12px 50px; background:var(--gold); color:black;">YENİ DRAFT BAŞLAT</button>
+        </div>
+    </div>
+
+<script>
+    const DB = {
+        "Real Madrid": [{n:"Kylian Mbappé", r:91},{n:"Jude Bellingham", r:91},{n:"Vinícius Júnior", r:90},{n:"Thibaut Courtois", r:89},{n:"Federico Valverde", r:88},{n:"Antonio Rüdiger", r:86},{n:"Rodrygo", r:86},{n:"Éder Militão", r:85},{n:"Aurélien Tchouaméni", r:85},{n:"Eduardo Camavinga", r:84},{n:"Dani Carvajal", r:84},{n:"Brahim Díaz", r:84},{n:"David Alaba", r:83},{n:"Ferland Mendy", r:83},{n:"Arda Güler", r:82}],
+        "FC Barcelona": [{n:"Robert Lewandowski", r:88},{n:"Jules Koundé", r:87},{n:"Frenkie de Jong", r:87},{n:"Raphinha", r:87},{n:"Lamine Yamal", r:86},{n:"Marc-André ter Stegen", r:86},{n:"Pedri", r:86},{n:"Ronald Araújo", r:85},{n:"Gavi", r:85},{n:"Dani Olmo", r:84},{n:"Andreas Christensen", r:84},{n:"Ferran Torres", r:82},{n:"Alejandro Balde", r:82},{n:"Pau Cubarsí", r:81},{n:"Fermín López", r:80}],
+        "Galatasaray": [{n:"Victor Osimhen", r:87},{n:"İlkay Gündoğan", r:83},{n:"Lucas Torreira", r:83},{n:"Leroy Sané", r:82},{n:"Davinson Sánchez", r:82},{n:"Mauro Icardi", r:81},{n:"Wilfried Singo", r:80},{n:"Abdülkerim Bardakcı", r:80},{n:"Barış Alper Yılmaz", r:80},{n:"Gabriel Sara", r:80},{n:"Uğurcan Çakır", r:80},{n:"Dries Mertens", r:79},{n:"Victor Nelsson", r:78},{n:"Michy Batshuayi", r:78},{n:"Kerem Demirbay", r:78}],
+        "Fenerbahçe": [{n:"Ederson", r:86},{n:"Filip Kostić", r:83},{n:"Anderson Talisca", r:81},{n:"Milan Škriniar", r:81},{n:"Dominik Livaković", r:80},{n:"Allan Saint-Maximin", r:79},{n:"Fred", r:79},{n:"Youssef En-Nesyri", r:79},{n:"Sofyan Amrabat", r:78},{n:"İsmail Yüksek", r:77},{n:"İrfan Can Kahveci", r:77},{n:"Sebastian Szymański", r:76},{n:"Dušan Tadić", r:76},{n:"Alexander Djiku", r:76},{n:"Çağlar Söyüncü", r:76}],
+        "Beşiktaş": [{n:"Orkun Kökçü", r:82},{n:"Rafa Silva", r:82},{n:"Mert Günok", r:78},{n:"João Mário", r:78},{n:"Ciro Immobile", r:78},{n:"Gedson Fernandes", r:78},{n:"Tammy Abraham", r:77},{n:"Václav Černý", r:77},{n:"Gabriel Paulista", r:77},{n:"Milot Rashica", r:76},{n:"Wilfred Ndidi", r:76},{n:"Felix Uduokhai", r:76},{n:"Cengiz Ünder", r:76},{n:"Tiago Djaló", r:75},{n:"Jonas Svensson", r:75}],
+        "Manchester City": [{n:"Rodri", r:90},{n:"Erling Haaland", r:90},{n:"Kevin De Bruyne", r:88},{n:"Rúben Dias", r:86},{n:"Tijjani Reijnders", r:86},{n:"Phil Foden", r:85},{n:"Gianluigi Donnarumma", r:89},{n:"Joško Gvardiol", r:84},{n:"Bernardo Silva", r:84},{n:"Mateo Kovačić", r:83},{n:"Nathan Aké", r:83},{n:"John Stones", r:82},{n:"Savinho", r:82},{n:"Rayan Aït-Nouri", r:81},{n:"Jérémy Doku", r:80}],
+        "Liverpool": [{n:"Mohamed Salah", r:89},{n:"Alisson Becker", r:89},{n:"Virgil van Dijk", r:88},{n:"Alexis Mac Allister", r:86},{n:"Trent Alexander-Arnold", r:86},{n:"Luis Díaz", r:85},{n:"Andrew Robertson", r:85},{n:"Ibrahima Konaté", r:84},{n:"Cody Gakpo", r:84},{n:"Diogo Jota", r:84},{n:"Dominik Szoboszlai", r:83},{n:"Darwin Núñez", r:83},{n:"Federico Chiesa", r:82},{n:"Ryan Gravenberch", r:81},{n:"Harvey Elliott", r:80}],
+        "Bayern Münih": [{n:"Joshua Kimmich", r:89},{n:"Harry Kane", r:89},{n:"Jamal Musiala", r:88},{n:"Jonathan Tah", r:87},{n:"Luis Díaz", r:85},{n:"Manuel Neuer", r:84},{n:"Min-jae Kim", r:83},{n:"Leon Goretzka", r:82},{n:"Serge Gnabry", r:82},{n:"Dayot Upamecano", r:82},{n:"Alphonso Davies", r:82},{n:"Thomas Müller", r:82},{n:"Michael Olise", r:82},{n:"Raphaël Guerreiro", r:80},{n:"Aleksandar Pavlović", r:79}],
+        "Arsenal": [{n:"Gabriel Magalhães", r:88},{n:"Bukayo Saka", r:88},{n:"Declan Rice", r:87},{n:"William Saliba", r:87},{n:"Martin Ødegaard", r:87},{n:"David Raya", r:87},{n:"Viktor Gyökeres", r:87},{n:"Mikel Merino", r:83},{n:"Martín Zubimendi", r:83},{n:"Piero Hincapié", r:83},{n:"Leandro Trossard", r:83},{n:"Benjamin White", r:83},{n:"Gabriel Jesus", r:82},{n:"Jorginho", r:82},{n:"Gabriel Martinelli", r:81}],
+        "PSG": [{n:"Ousmane Dembélé", r:90},{n:"Achraf Hakimi", r:89},{n:"Vitinha", r:89},{n:"Khvicha Kvaratskhelia", r:87},{n:"Marquinhos", r:87},{n:"Nuno Mendes", r:86},{n:"Willian Pacho", r:86},{n:"João Neves", r:85},{n:"Désiré Doué", r:85},{n:"Bradley Barcola", r:84},{n:"Lucas Chevalier", r:83},{n:"Fabián Ruiz", r:82},{n:"Marco Asensio", r:81},{n:"Lucas Hernández", r:81},{n:"Warren Zaïre-Emery", r:80}],
+        "Inter": [{n:"Lautaro Martínez", r:88},{n:"Alessandro Bastoni", r:87},{n:"Nicolò Barella", r:87},{n:"Yann Sommer", r:87},{n:"Hakan Çalhanoğlu", r:86},{n:"Federico Dimarco", r:85},{n:"Marcus Thuram", r:85},{n:"Benjamin Pavard", r:84},{n:"Piotr Zieliński", r:84},{n:"Francesco Acerbi", r:84},{n:"Stefan de Vrij", r:84},{n:"Denzel Dumfries", r:84},{n:"Henrikh Mkhitaryan", r:83},{n:"Davide Frattesi", r:83},{n:"Matteo Darmian", r:80}],
+        "Milan": [{n:"Mike Maignan", r:87},{n:"Theo Hernández", r:87},{n:"Tijjani Reijnders", r:86},{n:"Adrien Rabiot", r:86},{n:"Rafael Leão", r:84},{n:"Christian Pulisic", r:84},{n:"Fikayo Tomori", r:84},{n:"Álvaro Morata", r:83},{n:"Ismaël Bennacer", r:82},{n:"Ruben Loftus-Cheek", r:81},{n:"Youssouf Fofana", r:80},{n:"Samuel Chukwueze", r:80},{n:"Emerson Royal", r:79},{n:"Malick Thiaw", r:79},{n:"Luka Jović", r:77}]
+    };
+
+    const CLUBS = Object.keys(DB);
+    const FORM = [
+        {n:'GK', x:50, y:90}, {n:'LB', x:15, y:72}, {n:'LCB', x:38, y:78}, {n:'RCB', x:62, y:78}, {n:'RB', x:85, y:72},
+        {n:'LCM', x:25, y:52}, {n:'CM', x:50, y:58}, {n:'RCM', x:75, y:52}, {n:'LW', x:15, y:28}, {n:'ST', x:50, y:18}, {n:'RW', x:85, y:28}
+    ];
+
+    let turn = 'A', selClub = "", rot = 0, tSlot = null, squads = { A: [], B: [] }, usedP = new Set();
+
+    // Akıllı Temizleme (Şapkalı harf, Türkçe karakter, büyük/küçük hepsini standartlaştırır)
+    function clearTxt(str) {
+        return str.normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .replace(/ı/g, 'i').replace(/İ/g, 'i')
+                  .toLowerCase();
+    }
+
+    function init() {
+        const svg = document.getElementById('wheel-svg');
+        const slice = 360 / CLUBS.length;
+        CLUBS.forEach((name, i) => {
+            const angle = i * slice;
+            const p1 = polarToCart(50, 50, 50, angle), p2 = polarToCart(50, 50, 50, angle + slice);
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", `M 50 50 L ${p1.x} ${p1.y} A 50 50 0 0 1 ${p2.x} ${p2.y} Z`);
+            path.setAttribute("fill", i % 2 ? "#0e0e0e" : "#181818");
+            path.setAttribute("stroke", "#333");
+            svg.appendChild(path);
+            const ta = angle + slice/2, tp = polarToCart(50, 50, 36, ta);
+            const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            txt.setAttribute("x", tp.x); txt.setAttribute("y", tp.y); txt.setAttribute("fill", "#bbb");
+            txt.setAttribute("font-size", "2.8"); txt.setAttribute("text-anchor", "middle");
+            txt.setAttribute("transform", `rotate(${ta + 90}, ${tp.x}, ${tp.y})`);
+            txt.textContent = name;
+            svg.appendChild(txt);
+        });
+
+        ['A', 'B'].forEach(t => {
+            const p = document.getElementById(`pitch-${t}`), b = document.getElementById(`bench-${t}`);
+            FORM.forEach(pos => {
+                const s = document.createElement('div'); s.className = 'slot';
+                s.style.left = pos.x + '%'; s.style.top = pos.y + '%'; s.innerText = pos.n;
+                s.onclick = () => handleS(t, s, pos.n); p.appendChild(s);
+            });
+            for(let i=1; i<=3; i++){
+                const sub = document.createElement('div'); sub.className = 'sub-slot'; sub.innerText = `SUB ${i}`;
+                sub.onclick = () => handleS(t, sub, `YEDEK ${i}`); b.appendChild(sub);
+            }
+        });
+    }
+
+    function polarToCart(cx, cy, r, a) {
+        const rad = (a - 90) * Math.PI / 180;
+        return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+    }
+
+    function spin() {
+        document.getElementById('spin-btn').disabled = true;
+        rot += Math.floor(Math.random() * 360) + 1800;
+        document.getElementById('wheel-svg').style.transform = `rotate(${rot}deg)`;
+        setTimeout(() => {
+            const stop = (360 - (rot % 360)) % 360;
+            selClub = CLUBS[Math.floor(stop / (360 / CLUBS.length))];
+            document.getElementById('res-club').innerText = selClub;
+        }, 4000);
+    }
+
+    function handleS(t, el, pos) {
+        if (t !== turn || !selClub || el.classList.contains('filled')) return;
+        tSlot = el;
+        document.getElementById('m-club').innerText = selClub;
+        document.getElementById('m-pos').innerText = pos;
+        document.getElementById('modal').style.display = 'flex';
+        document.getElementById('p-input').value = ""; document.getElementById('p-input').focus();
+    }
+
+    function confirmP() {
+        const inputVal = clearTxt(document.getElementById('p-input').value.trim());
+        if(!inputVal) return;
+
+        // Akıllı Filtre: Gelen isimde input geçiyor mu? (Örn: "os" yazdı, "Osimhen"i bulur)
+        const found = DB[selClub].find(p => clearTxt(p.n).includes(inputVal));
+
+        if (found) {
+            if (usedP.has(found.n)) { alert("Bu oyuncu zaten seçildi!"); return; }
+            tSlot.classList.add('filled');
+            tSlot.innerHTML = `<div style="font-size:9px">${found.n}</div><div class="rtg">${found.r}</div>`;
+            squads[turn].push(found);
+            usedP.add(found.n);
+            closeM();
+            next();
+        } else {
+            alert("Oyuncu bulunamadı! İsmi veya soyismini doğru yazdığınızdan emin olun.");
+        }
+    }
+
+    function next() {
+        turn = turn === 'A' ? 'B' : 'A';
+        const d = document.getElementById('turn-txt');
+        d.innerText = `Sıra: ${turn} Takımı`;
+        d.style.color = turn === 'A' ? 'var(--p1)' : 'var(--p2)';
+        document.getElementById('pitch-A').classList.toggle('active-a');
+        document.getElementById('pitch-B').classList.toggle('active-b');
+        selClub = ""; document.getElementById('res-club').innerText = "";
+        document.getElementById('spin-btn').disabled = false;
+        if (usedP.size === 28) finish();
+    }
+
+    function closeM() { document.getElementById('modal').style.display = 'none'; }
+
+    function finish() {
+        const sA = squads.A.reduce((a, b) => a + b.r, 0), sB = squads.B.reduce((a, b) => a + b.r, 0);
+        document.querySelectorAll('.rtg').forEach(e => e.style.display = 'block');
+        document.getElementById('win-overlay').style.display = 'flex';
+        document.getElementById('win-team').innerText = sA > sB ? "A TAKIMI KAZANDI!" : (sB > sA ? "B TAKIMI KAZANDI!" : "BERABERE!");
+        document.getElementById('win-score').innerText = `A Takımı: ${sA} | B Takımı: ${sB}`;
+    }
+
+    init();
+</script>
+</body>
+</html>
